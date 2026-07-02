@@ -9,7 +9,7 @@ Solo submission by Ralph Andrei Masangkay
 
 ## Live Demo
 
-[Deployed on Vercel →](#) https://bobthebriefr.vercel.app/
+Deployed on Vercel → https://bobthebriefr.vercel.app/
 
 ## Demo Video
 
