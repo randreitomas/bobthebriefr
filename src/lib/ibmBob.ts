@@ -5,10 +5,27 @@ import type { Brief, BriefDirection, EventFormData, ToneControls } from '../type
 
 const API_URL = '/api/brief'
 const REQUEST_TIMEOUT_MS = 90_000
-const MAX_RETRIES = 2
+const MAX_RETRIES = 4
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504])
 
-// Two-pass pipeline: creative generation → JSON schema enforcement (watsonx Granite)
+/** watsonx Lite allows few concurrent requests per model — serialize client calls. */
+let requestChain: Promise<unknown> = Promise.resolve()
+
+function enqueueRequest<T>(fn: () => Promise<T>): Promise<T> {
+  const run = requestChain.then(fn, fn)
+  requestChain = run.then(
+    () => undefined,
+    () => undefined
+  )
+  return run
+}
+
+function retryDelayMs(attempt: number, status?: number): number {
+  if (status === 429) return [3000, 8000, 15000, 25000][attempt] ?? 25000
+  return 800 * (attempt + 1)
+}
+
+// Two-pass pipeline: creative generation → JSON schema enforcement (watsonx / IBM Granite)
 //   Pass 1 — creative prose at higher temperature
 //   Pass 2 — JSON schema enforcement at temperature 0
 export async function callPipeline(
@@ -54,7 +71,16 @@ async function chatCompletion(
   signal: AbortSignal | undefined,
   label: string
 ): Promise<string> {
+  return enqueueRequest(() => chatCompletionOnce(body, signal, label))
+}
+
+async function chatCompletionOnce(
+  body: Record<string, unknown>,
+  signal: AbortSignal | undefined,
+  label: string
+): Promise<string> {
   let lastError: Error | null = null
+  let lastStatus: number | undefined
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const controller = new AbortController()
@@ -76,8 +102,9 @@ async function chatCompletion(
 
       if (!res.ok) {
         const errText = await res.text()
+        lastStatus = res.status
         if (RETRYABLE_STATUSES.has(res.status) && attempt < MAX_RETRIES) {
-          await delay(800 * (attempt + 1))
+          await delay(retryDelayMs(attempt, res.status))
           continue
         }
         throw new Error(`Error (${label}): ${res.status} — ${errText}`)
@@ -95,7 +122,7 @@ async function chatCompletion(
       }
       lastError = err instanceof Error ? err : new Error(String(err))
       if (attempt < MAX_RETRIES && isRetryableError(lastError)) {
-        await delay(800 * (attempt + 1))
+        await delay(retryDelayMs(attempt, lastStatus))
         continue
       }
       throw lastError
@@ -123,37 +150,18 @@ export async function callMultiDirection(
   onProgress?: (completed: number, total: number) => void
 ): Promise<BriefDirection[]> {
   const ids = ['A', 'B', 'C'] as const
-  let completed = 0
-
-  const results = await Promise.allSettled(
-    ids.map(async id => {
-      const raw = await callPipeline({ prompt: buildDirectionPrompt(form, tone, id) }, signal)
-      const brief = parseBriefJSON(raw)
-      completed++
-      onProgress?.(completed, ids.length)
-      return { id, label: getDirectionLabel(id), brief }
-    })
-  )
-
   const directions: BriefDirection[] = []
   const failures: string[] = []
 
-  for (let i = 0; i < results.length; i++) {
-    const result = results[i]
-    if (result.status === 'fulfilled') {
-      directions.push(result.value)
-      continue
-    }
-
+  for (let i = 0; i < ids.length; i++) {
     const id = ids[i]
     try {
       const raw = await callPipeline({ prompt: buildDirectionPrompt(form, tone, id) }, signal)
       const brief = parseBriefJSON(raw)
       directions.push({ id, label: getDirectionLabel(id), brief })
-      completed++
-      onProgress?.(completed, ids.length)
-    } catch (retryErr) {
-      const msg = retryErr instanceof Error ? retryErr.message : String(retryErr)
+      onProgress?.(i + 1, ids.length)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
       failures.push(`Direction ${id}: ${msg}`)
     }
   }
@@ -166,7 +174,7 @@ export async function callMultiDirection(
     throw new Error(`${failures.length} direction(s) failed. ${failures.join(' · ')}`)
   }
 
-  return directions.sort((a, b) => a.id.localeCompare(b.id))
+  return directions
 }
 
 export async function callMerge(dirA: BriefDirection, dirB: BriefDirection, signal?: AbortSignal): Promise<Brief> {

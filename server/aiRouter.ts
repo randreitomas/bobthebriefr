@@ -157,8 +157,8 @@ async function callWatsonxChat(
   let lastText = ''
 
   for (const modelId of models) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      if (attempt > 0) await delay(900)
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (attempt > 0) await delay(retryDelayMs(attempt - 1, lastStatus))
 
       const { status, text } = await callWatsonxChatOnce(creds, openAiBody, modelId)
 
@@ -174,7 +174,7 @@ async function callWatsonxChat(
         break
       }
 
-      if (RETRYABLE_STATUSES.has(status) && attempt === 0) {
+      if (RETRYABLE_STATUSES.has(status) && attempt < 4) {
         continue
       }
 
@@ -187,6 +187,14 @@ async function callWatsonxChat(
 
 function formatWatsonxError(status: number, text: string, skippedModels: string[] = []): string {
   const lower = text.toLowerCase()
+
+  if (lower.includes('container_not_found') || lower.includes('failed to find project_id')) {
+    return (
+      'watsonx: Project ID not found in this region. Your WATSONX_URL must match where the project was created ' +
+      '(e.g. us-south project → https://us-south.ml.cloud.ibm.com, Tokyo → https://jp-tok.ml.cloud.ibm.com). ' +
+      'Copy the project ID from watsonx.ai while the same region is selected in the console.'
+    )
+  }
 
   if (lower.includes('no_associated_service_instance_error')) {
     return (
@@ -206,6 +214,18 @@ function formatWatsonxError(status: number, text: string, skippedModels: string[
     )
   }
 
+  if (lower.includes('consumption_limit_reached') || (status === 429 && lower.includes('concurrent'))) {
+    return (
+      'watsonx: Lite plan concurrent request limit reached for this model. ' +
+      'Wait 30–60 seconds, close other tabs using watsonx, then try again. ' +
+      'The app now queues requests one at a time to stay within the free tier limit.'
+    )
+  }
+
+  if (status === 429) {
+    return 'watsonx: Rate limit hit. Please wait a moment and try again.'
+  }
+
   if (lower.includes('not authorized') || status === 401) {
     return 'watsonx: API key rejected. Create a new key at cloud.ibm.com/iam/apikeys and ensure your user is Editor on the watsonx project.'
   }
@@ -215,6 +235,15 @@ function formatWatsonxError(status: number, text: string, skippedModels: string[
   }
 
   return `watsonx ${status}: ${text.slice(0, 240)}`
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function retryDelayMs(attempt: number, status?: number): number {
+  if (status === 429) return [2000, 5000, 10000, 20000][attempt] ?? 20000
+  return 900 * (attempt + 1)
 }
 
 export async function routeBriefRequest(
@@ -237,10 +266,6 @@ export async function routeBriefRequest(
     const msg = err instanceof Error ? err.message : String(err)
     throw new Error(msg.includes('watsonx') ? msg : `watsonx: ${msg}`)
   }
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 export function getServerWatsonxCredentials(): WatsonxCredentials {
