@@ -1,6 +1,5 @@
 import { HeroBriefPreview } from './HeroBriefPreview'
 import { AppFooter } from './AppFooter'
-import { SiteTopbar } from './SiteTopbar'
 
 interface Props {
   onGetStarted: () => void
@@ -16,16 +15,7 @@ const HOW_STEPS = [
 export function HeroPage({ onGetStarted }: Props) {
   return (
     <div className="hero-page">
-      <SiteTopbar
-        end={
-          <button type="button" className="btn-primary hero-nav-cta" onClick={onGetStarted}>
-            Get Started
-          </button>
-        }
-      />
-
       <section className="hero-section">
-        <div className="hero-badge">IBM AI Builders Challenge 2026</div>
         <h1 className="hero-headline">
           Your event brief,<br />
           <em>written in seconds.</em>

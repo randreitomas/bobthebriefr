@@ -7,7 +7,7 @@ export interface UserApiKeys {
 
 const STORAGE_KEY = 'bobthebriefr_api_keys'
 
-const DEFAULT_BASE_URL = 'https://jp-tok.ml.cloud.ibm.com'
+const DEFAULT_BASE_URL = 'https://us-south.ml.cloud.ibm.com'
 
 const DEFAULT: UserApiKeys = {
   useOwnKeys: false,

@@ -5,7 +5,7 @@ import {
   extractWatsonxCredentialsFromHeaders,
   routeBriefRequest,
   type WatsonxCredentials,
-} from './aiRouter.ts'
+} from '../api/lib/aiRouter.ts'
 
 function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {

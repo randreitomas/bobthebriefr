@@ -1,4 +1,4 @@
-import { getIamToken } from './watsonxAuth.ts'
+import { getIamToken } from './watsonxAuth.js'
 
 export const WATSONX_DEFAULT_URL =
   process.env.WATSONX_URL ?? 'https://jp-tok.ml.cloud.ibm.com'
@@ -255,7 +255,8 @@ export async function routeBriefRequest(
 
   if (!apiKey || !projectId) {
     throw new Error(
-      'No watsonx credentials available. Set WATSONX_API_KEY and WATSONX_PROJECT_ID in .env, or enable "Use my own keys" in the app settings.'
+      'No watsonx credentials configured. For local dev, set WATSONX_API_KEY and WATSONX_PROJECT_ID in .env. ' +
+        'For Vercel, add the same variables in Project Settings → Environment Variables, then redeploy.'
     )
   }
 

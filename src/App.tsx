@@ -14,7 +14,6 @@ import { ExportButton } from './components/ExportButton'
 import { ToneControlsPanel } from './components/ToneControlsPanel'
 import { BriefHistory } from './components/BriefHistory'
 import { ApiKeySettings } from './components/ApiKeySettings'
-import { SiteTopbar } from './components/SiteTopbar'
 import { AppFooter } from './components/AppFooter'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toast, type ToastMessage, type ToastType } from './components/Toast'
@@ -132,11 +131,6 @@ export default function App() {
     setView('brief')
   }, [])
 
-  function handleBackToHome() {
-    clearError()
-    setView('hero')
-  }
-
   function handleStartOver() {
     setBrief(null)
     setDirections(null)
@@ -155,7 +149,6 @@ export default function App() {
 
       {(view === 'form' || view === 'loading' || view === 'merging') && (
         <div className="app-shell">
-          <SiteTopbar onBrandClick={handleBackToHome} />
 
           <div className="app-container app-container--workspace">
             {view === 'form' && (
@@ -177,7 +170,7 @@ export default function App() {
                       onRestore={handleRestoreHistory}
                       onHistoryChange={refreshHistory}
                     />
-                    <ApiKeySettings />
+                    {!import.meta.env.PROD && <ApiKeySettings />}
                   </aside>
                 </div>
               </>
@@ -195,7 +188,6 @@ export default function App() {
 
       {view === 'directions' && directions && formData && (
         <div className="app-shell">
-          <SiteTopbar onBrandClick={handleBackToHome} />
           <div className="app-container app-container--wide">
             {error && <div className="error-banner">{error}</div>}
             <DirectionPicker
@@ -212,7 +204,6 @@ export default function App() {
 
       {view === 'brief' && brief && formData && (
         <div className="app-shell">
-          <SiteTopbar onBrandClick={handleBackToHome} />
 
           <div className="app-container app-container--brief">
             <div className="brief-page">
